@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import AudioWaveform from "./AudioWaveform";
+import { supabase } from "@/integrations/supabase/client";
 
 const ScriptGenerator = () => {
   const [brandName, setBrandName] = useState("");
@@ -21,6 +22,7 @@ const ScriptGenerator = () => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [selectedVoice, setSelectedVoice] = useState("");
   const [isGeneratingAudio, setIsGeneratingAudio] = useState(false);
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const { toast } = useToast();
 
   const handleGenerate = async () => {
@@ -34,17 +36,55 @@ const ScriptGenerator = () => {
     }
 
     setIsGenerating(true);
-    // Simulate API call
-    setTimeout(() => {
-      setGeneratedScript(
-        `Introducing ${brandName} - ${description}. Experience the difference today!`
-      );
-      setIsGenerating(false);
+    try {
+      const { data: { OPENAI_API_KEY }, error: secretError } = await supabase
+        .from('secrets')
+        .select('OPENAI_API_KEY')
+        .single();
+
+      if (secretError || !OPENAI_API_KEY) {
+        throw new Error('Failed to retrieve OpenAI API key');
+      }
+
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${OPENAI_API_KEY}`,
+        },
+        body: JSON.stringify({
+          model: "gpt-3.5-turbo",
+          messages: [{
+            role: "system",
+            content: `You are an expert copywriter specializing in ${duration}-second radio advertisements. Create compelling, concise scripts that fit within the time limit.`
+          }, {
+            role: "user",
+            content: `Create a ${duration}-second radio ad script for ${brandName}. Here's the description: ${description}`
+          }],
+          temperature: 0.7,
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error?.message || 'Failed to generate script');
+      }
+
+      setGeneratedScript(data.choices[0].message.content);
       toast({
         title: "Script Generated",
         description: "Your ad script has been created successfully!",
       });
-    }, 2000);
+    } catch (error) {
+      console.error('Script generation error:', error);
+      toast({
+        title: "Error",
+        description: "Failed to generate script. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   const handleGenerateAudio = async () => {
@@ -58,14 +98,54 @@ const ScriptGenerator = () => {
     }
 
     setIsGeneratingAudio(true);
-    // Simulate API call
-    setTimeout(() => {
-      setIsGeneratingAudio(false);
+    try {
+      const { data: { ELEVEN_LABS_API_KEY }, error: secretError } = await supabase
+        .from('secrets')
+        .select('ELEVEN_LABS_API_KEY')
+        .single();
+
+      if (secretError || !ELEVEN_LABS_API_KEY) {
+        throw new Error('Failed to retrieve ElevenLabs API key');
+      }
+
+      const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${selectedVoice}`, {
+        method: 'POST',
+        headers: {
+          'Accept': 'audio/mpeg',
+          'Content-Type': 'application/json',
+          'xi-api-key': ELEVEN_LABS_API_KEY,
+        },
+        body: JSON.stringify({
+          text: generatedScript,
+          model_id: "eleven_monolingual_v1",
+          voice_settings: {
+            stability: 0.5,
+            similarity_boost: 0.5,
+          },
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to generate audio');
+      }
+
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      setAudioUrl(url);
       toast({
         title: "Audio Generated",
         description: "Your audio ad has been created successfully!",
       });
-    }, 3000);
+    } catch (error) {
+      console.error('Audio generation error:', error);
+      toast({
+        title: "Error",
+        description: "Failed to generate audio. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGeneratingAudio(false);
+    }
   };
 
   return (
@@ -131,9 +211,10 @@ const ScriptGenerator = () => {
                 <SelectValue placeholder="Choose a voice" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="alice">Alice (Female)</SelectItem>
-                <SelectItem value="bob">Bob (Male)</SelectItem>
-                <SelectItem value="charlie">Charlie (Male)</SelectItem>
+                <SelectItem value="21m00Tcm4TlvDq8ikWAM">Rachel (Female)</SelectItem>
+                <SelectItem value="AZnzlk1XvdvUeBnXmlld">Domi (Male)</SelectItem>
+                <SelectItem value="EXAVITQu4vr4xnSDxMaL">Bella (Female)</SelectItem>
+                <SelectItem value="ErXwobaYiN019PkySvjV">Antoni (Male)</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -151,6 +232,15 @@ const ScriptGenerator = () => {
               "Generate Audio"
             )}
           </Button>
+
+          {audioUrl && (
+            <div className="mt-4">
+              <audio controls className="w-full">
+                <source src={audioUrl} type="audio/mpeg" />
+                Your browser does not support the audio element.
+              </audio>
+            </div>
+          )}
         </div>
       )}
     </div>
