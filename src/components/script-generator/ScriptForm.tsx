@@ -45,6 +45,7 @@ const ScriptForm = ({ onScriptGenerated, isGenerating, setIsGenerating }: Script
         .single();
 
       if (secretError || !secrets?.value) {
+        console.error('Secret error:', secretError);
         throw new Error('Failed to retrieve OpenAI API key');
       }
 
@@ -55,7 +56,7 @@ const ScriptForm = ({ onScriptGenerated, isGenerating, setIsGenerating }: Script
           'Authorization': `Bearer ${secrets.value}`,
         },
         body: JSON.stringify({
-          model: "gpt-4o",
+          model: "gpt-4",
           messages: [{
             role: "system",
             content: `You are an expert copywriter specializing in ${duration}-second radio advertisements. Create compelling, concise scripts that fit within the time limit.`
@@ -68,6 +69,8 @@ const ScriptForm = ({ onScriptGenerated, isGenerating, setIsGenerating }: Script
       });
 
       if (!response.ok) {
+        const errorData = await response.text();
+        console.error('OpenAI error:', errorData);
         throw new Error('Failed to generate script');
       }
 
