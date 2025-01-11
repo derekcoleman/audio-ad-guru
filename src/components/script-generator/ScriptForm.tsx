@@ -38,28 +38,29 @@ const ScriptForm = ({ onScriptGenerated, isGenerating, setIsGenerating }: Script
 
     setIsGenerating(true);
     try {
-      // Query for OpenAI API key
-      const { data, error } = await supabase
+      // Get the OpenAI API key from Supabase secrets
+      const { data: secretData, error: secretError } = await supabase
         .from('secrets')
         .select('value')
         .eq('key', 'OPENAI_API_KEY')
-        .single();
+        .maybeSingle();
 
-      if (error) {
-        console.error('Error fetching OpenAI API key:', error);
+      if (secretError) {
+        console.error('Error fetching OpenAI API key:', secretError);
         throw new Error('Failed to retrieve OpenAI API key');
       }
 
-      const apiKey = data?.value;
+      const apiKey = secretData?.value;
       if (!apiKey) {
         toast({
-          title: "API Key Missing",
-          description: "OpenAI API key not found. Please configure it in Supabase secrets.",
+          title: "API Key Not Found",
+          description: "OpenAI API key is missing. Please check your Supabase configuration.",
           variant: "destructive",
         });
         return;
       }
 
+      // Make the OpenAI API request
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -82,11 +83,12 @@ const ScriptForm = ({ onScriptGenerated, isGenerating, setIsGenerating }: Script
       if (!response.ok) {
         const errorData = await response.text();
         console.error('OpenAI API error:', errorData);
-        throw new Error('Failed to generate script');
+        throw new Error('OpenAI API request failed');
       }
 
-      const data2 = await response.json() as OpenAIResponse;
-      onScriptGenerated(data2.choices[0].message.content);
+      const data = await response.json() as OpenAIResponse;
+      onScriptGenerated(data.choices[0].message.content);
+      
       toast({
         title: "Success!",
         description: "Your ad script has been created successfully!",
