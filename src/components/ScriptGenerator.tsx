@@ -14,6 +14,14 @@ import { useToast } from "@/hooks/use-toast";
 import AudioWaveform from "./AudioWaveform";
 import { supabase } from "@/integrations/supabase/client";
 
+interface OpenAIResponse {
+  choices: Array<{
+    message: {
+      content: string;
+    };
+  }>;
+}
+
 const ScriptGenerator = () => {
   const [brandName, setBrandName] = useState("");
   const [description, setDescription] = useState("");
@@ -37,12 +45,13 @@ const ScriptGenerator = () => {
 
     setIsGenerating(true);
     try {
-      const { data: { OPENAI_API_KEY }, error: secretError } = await supabase
+      const { data: secrets, error: secretError } = await supabase
         .from('secrets')
-        .select('OPENAI_API_KEY')
+        .select('value')
+        .eq('key', 'OPENAI_API_KEY')
         .single();
 
-      if (secretError || !OPENAI_API_KEY) {
+      if (secretError || !secrets?.value) {
         throw new Error('Failed to retrieve OpenAI API key');
       }
 
@@ -50,10 +59,10 @@ const ScriptGenerator = () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${OPENAI_API_KEY}`,
+          'Authorization': `Bearer ${secrets.value}`,
         },
         body: JSON.stringify({
-          model: "gpt-3.5-turbo",
+          model: "gpt-4o",
           messages: [{
             role: "system",
             content: `You are an expert copywriter specializing in ${duration}-second radio advertisements. Create compelling, concise scripts that fit within the time limit.`
@@ -65,11 +74,11 @@ const ScriptGenerator = () => {
         }),
       });
 
-      const data = await response.json();
       if (!response.ok) {
-        throw new Error(data.error?.message || 'Failed to generate script');
+        throw new Error('Failed to generate script');
       }
 
+      const data = await response.json() as OpenAIResponse;
       setGeneratedScript(data.choices[0].message.content);
       toast({
         title: "Script Generated",
@@ -99,12 +108,13 @@ const ScriptGenerator = () => {
 
     setIsGeneratingAudio(true);
     try {
-      const { data: { ELEVEN_LABS_API_KEY }, error: secretError } = await supabase
+      const { data: secrets, error: secretError } = await supabase
         .from('secrets')
-        .select('ELEVEN_LABS_API_KEY')
+        .select('value')
+        .eq('key', 'ELEVEN_LABS_API_KEY')
         .single();
 
-      if (secretError || !ELEVEN_LABS_API_KEY) {
+      if (secretError || !secrets?.value) {
         throw new Error('Failed to retrieve ElevenLabs API key');
       }
 
@@ -113,7 +123,7 @@ const ScriptGenerator = () => {
         headers: {
           'Accept': 'audio/mpeg',
           'Content-Type': 'application/json',
-          'xi-api-key': ELEVEN_LABS_API_KEY,
+          'xi-api-key': secrets.value,
         },
         body: JSON.stringify({
           text: generatedScript,
