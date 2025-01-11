@@ -38,7 +38,7 @@ const ScriptForm = ({ onScriptGenerated, isGenerating, setIsGenerating }: Script
 
     setIsGenerating(true);
     try {
-      const { data: secrets, error: secretError } = await supabase
+      const { data: secretData, error: secretError } = await supabase
         .from('secrets')
         .select('value')
         .eq('key', 'OPENAI_API_KEY')
@@ -49,10 +49,10 @@ const ScriptForm = ({ onScriptGenerated, isGenerating, setIsGenerating }: Script
         throw new Error('Failed to retrieve OpenAI API key');
       }
 
-      if (!secrets?.value) {
+      if (!secretData) {
         toast({
           title: "Configuration Error",
-          description: "OpenAI API key not found. Please make sure it's configured in the secrets.",
+          description: "OpenAI API key not found in secrets. Please make sure it's configured correctly.",
           variant: "destructive",
         });
         return;
@@ -62,10 +62,10 @@ const ScriptForm = ({ onScriptGenerated, isGenerating, setIsGenerating }: Script
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${secrets.value}`,
+          'Authorization': `Bearer ${secretData.value}`,
         },
         body: JSON.stringify({
-          model: "gpt-4",
+          model: "gpt-4o-mini",
           messages: [{
             role: "system",
             content: `You are an expert copywriter specializing in ${duration}-second radio advertisements. Create compelling, concise scripts that fit within the time limit.`
