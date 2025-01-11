@@ -45,19 +45,21 @@ const ScriptForm = ({ onScriptGenerated, isGenerating, setIsGenerating }: Script
         .maybeSingle();
 
       if (secretError) {
-        console.error('Secret error:', secretError);
+        console.error('Error fetching OpenAI API key:', secretError);
         throw new Error('Failed to retrieve OpenAI API key');
       }
 
       if (!secretData?.value) {
+        console.error('OpenAI API key not found in secrets');
         toast({
           title: "Configuration Error",
-          description: "OpenAI API key not found in secrets. Please make sure it's configured correctly.",
+          description: "OpenAI API key not found. Please check your configuration.",
           variant: "destructive",
         });
         return;
       }
 
+      console.log('Attempting to generate script with OpenAI...');
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -79,14 +81,14 @@ const ScriptForm = ({ onScriptGenerated, isGenerating, setIsGenerating }: Script
 
       if (!response.ok) {
         const errorData = await response.text();
-        console.error('OpenAI error:', errorData);
+        console.error('OpenAI API error:', errorData);
         throw new Error('Failed to generate script');
       }
 
       const data = await response.json() as OpenAIResponse;
       onScriptGenerated(data.choices[0].message.content);
       toast({
-        title: "Script Generated",
+        title: "Success!",
         description: "Your ad script has been created successfully!",
       });
     } catch (error) {
