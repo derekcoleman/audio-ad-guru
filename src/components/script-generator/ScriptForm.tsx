@@ -38,33 +38,33 @@ const ScriptForm = ({ onScriptGenerated, isGenerating, setIsGenerating }: Script
 
     setIsGenerating(true);
     try {
-      const { data: secretData, error: secretError } = await supabase
+      // Query for OpenAI API key
+      const { data, error } = await supabase
         .from('secrets')
-        .select('*')
+        .select('value')
         .eq('key', 'OPENAI_API_KEY')
-        .maybeSingle();
+        .single();
 
-      if (secretError) {
-        console.error('Error fetching OpenAI API key:', secretError);
+      if (error) {
+        console.error('Error fetching OpenAI API key:', error);
         throw new Error('Failed to retrieve OpenAI API key');
       }
 
-      if (!secretData?.value) {
-        console.error('OpenAI API key not found in secrets');
+      const apiKey = data?.value;
+      if (!apiKey) {
         toast({
-          title: "Configuration Error",
-          description: "OpenAI API key not found. Please check your configuration.",
+          title: "API Key Missing",
+          description: "OpenAI API key not found. Please configure it in Supabase secrets.",
           variant: "destructive",
         });
         return;
       }
 
-      console.log('Attempting to generate script with OpenAI...');
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${secretData.value}`,
+          'Authorization': `Bearer ${apiKey}`,
         },
         body: JSON.stringify({
           model: "gpt-4",
@@ -85,8 +85,8 @@ const ScriptForm = ({ onScriptGenerated, isGenerating, setIsGenerating }: Script
         throw new Error('Failed to generate script');
       }
 
-      const data = await response.json() as OpenAIResponse;
-      onScriptGenerated(data.choices[0].message.content);
+      const data2 = await response.json() as OpenAIResponse;
+      onScriptGenerated(data2.choices[0].message.content);
       toast({
         title: "Success!",
         description: "Your ad script has been created successfully!",
