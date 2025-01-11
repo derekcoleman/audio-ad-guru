@@ -42,11 +42,20 @@ const ScriptForm = ({ onScriptGenerated, isGenerating, setIsGenerating }: Script
         .from('secrets')
         .select('value')
         .eq('key', 'OPENAI_API_KEY')
-        .single();
+        .maybeSingle();
 
-      if (secretError || !secrets?.value) {
+      if (secretError) {
         console.error('Secret error:', secretError);
         throw new Error('Failed to retrieve OpenAI API key');
+      }
+
+      if (!secrets?.value) {
+        toast({
+          title: "Configuration Error",
+          description: "OpenAI API key not found. Please make sure it's configured in the secrets.",
+          variant: "destructive",
+        });
+        return;
       }
 
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
