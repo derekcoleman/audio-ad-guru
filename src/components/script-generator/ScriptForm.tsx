@@ -11,8 +11,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
-import { OpenAIResponse } from "@/types/openai";
+import { generateAdScript, OpenAIError } from "@/services/openai";
 
 interface ScriptFormProps {
   onScriptGenerated: (script: string) => void;
@@ -38,57 +37,8 @@ const ScriptForm = ({ onScriptGenerated, isGenerating, setIsGenerating }: Script
 
     setIsGenerating(true);
     try {
-      // Get the OpenAI API key from Supabase secrets
-      const { data: secretData, error: secretError } = await supabase
-        .from('secrets')
-        .select('value')
-        .eq('key', 'OPENAI_API_KEY')
-        .maybeSingle();
-
-      if (secretError) {
-        console.error('Error fetching OpenAI API key:', secretError);
-        throw new Error('Failed to retrieve OpenAI API key');
-      }
-
-      const apiKey = secretData?.value;
-      if (!apiKey) {
-        toast({
-          title: "API Key Not Found",
-          description: "OpenAI API key is missing. Please check your Supabase configuration.",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      // Make the OpenAI API request
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-          model: "gpt-4",
-          messages: [{
-            role: "system",
-            content: `You are an expert copywriter specializing in ${duration}-second radio advertisements. Create compelling, concise scripts that fit within the time limit.`
-          }, {
-            role: "user",
-            content: `Create a ${duration}-second radio ad script for ${brandName}. Here's the description: ${description}`
-          }],
-          temperature: 0.7,
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.text();
-        console.error('OpenAI API error:', errorData);
-        throw new Error('OpenAI API request failed');
-      }
-
-      const data = await response.json() as OpenAIResponse;
-      onScriptGenerated(data.choices[0].message.content);
-      
+      const script = await generateAdScript(brandName, description, duration);
+      onScriptGenerated(script);
       toast({
         title: "Success!",
         description: "Your ad script has been created successfully!",
@@ -97,7 +47,7 @@ const ScriptForm = ({ onScriptGenerated, isGenerating, setIsGenerating }: Script
       console.error('Script generation error:', error);
       toast({
         title: "Error",
-        description: "Failed to generate script. Please try again.",
+        description: error instanceof OpenAIError ? error.message : "Failed to generate script. Please try again.",
         variant: "destructive",
       });
     } finally {
