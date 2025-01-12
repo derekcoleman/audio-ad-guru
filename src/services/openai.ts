@@ -13,7 +13,7 @@ export async function getOpenAIKey(): Promise<string> {
     .from('secrets')
     .select('value')
     .eq('key', 'OPENAI_API_KEY')
-    .single();
+    .maybeSingle();
 
   if (error) {
     console.error('Failed to fetch OpenAI API key:', error);
@@ -21,7 +21,7 @@ export async function getOpenAIKey(): Promise<string> {
   }
 
   if (!data?.value) {
-    throw new OpenAIError('OpenAI API key not found');
+    throw new OpenAIError('OpenAI API key not found. Please make sure you have set it in your Supabase secrets.');
   }
 
   return data.value;
@@ -30,6 +30,7 @@ export async function getOpenAIKey(): Promise<string> {
 export async function generateAdScript(brandName: string, description: string, duration: string): Promise<string> {
   try {
     const apiKey = await getOpenAIKey();
+    console.log('Successfully retrieved API key');
 
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -38,7 +39,7 @@ export async function generateAdScript(brandName: string, description: string, d
         'Authorization': `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: "gpt-4o-mini",
+        model: "gpt-4",
         messages: [{
           role: "system",
           content: `You are an expert copywriter specializing in ${duration}-second radio advertisements. Create compelling, concise scripts that fit within the time limit.`
@@ -53,16 +54,16 @@ export async function generateAdScript(brandName: string, description: string, d
     if (!response.ok) {
       const errorData = await response.text();
       console.error('OpenAI API error:', errorData);
-      throw new OpenAIError('Failed to generate script');
+      throw new OpenAIError('Failed to generate script. Please try again.');
     }
 
     const data = await response.json() as OpenAIResponse;
     return data.choices[0].message.content;
   } catch (error) {
+    console.error('Script generation error:', error);
     if (error instanceof OpenAIError) {
       throw error;
     }
-    console.error('Script generation error:', error);
-    throw new OpenAIError('Failed to generate script');
+    throw new OpenAIError('Failed to generate script. Please try again.');
   }
 }
