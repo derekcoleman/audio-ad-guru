@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -28,40 +29,16 @@ const AudioGenerator = ({ script }: AudioGeneratorProps) => {
 
     setIsGeneratingAudio(true);
     try {
-      const { data: secrets, error: secretError } = await supabase
-        .from('secrets')
-        .select('value')
-        .eq('key', 'ELEVEN_LABS_API_KEY')
-        .single();
-
-      if (secretError || !secrets?.value) {
-        throw new Error('Failed to retrieve ElevenLabs API key');
-      }
-
-      const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${selectedVoice}`, {
-        method: 'POST',
-        headers: {
-          'Accept': 'audio/mpeg',
-          'Content-Type': 'application/json',
-          'xi-api-key': secrets.value,
-        },
-        body: JSON.stringify({
-          text: script,
-          model_id: "eleven_monolingual_v1",
-          voice_settings: {
-            stability: 0.5,
-            similarity_boost: 0.5,
-          },
-        }),
+      const { data, error } = await supabase.functions.invoke('generate-audio', {
+        body: { script, voiceId: selectedVoice }
       });
 
-      if (!response.ok) {
-        throw new Error('Failed to generate audio');
-      }
+      if (error) throw error;
 
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
+      const audioBlob = await fetch(`data:audio/mpeg;base64,${data.audioContent}`).then(res => res.blob());
+      const url = URL.createObjectURL(audioBlob);
       setAudioUrl(url);
+      
       toast({
         title: "Audio Generated",
         description: "Your audio ad has been created successfully!",
