@@ -8,31 +8,33 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
+  // This will help us track if the function is being called
+  console.log('Function called at:', new Date().toISOString());
+
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
 
   try {
-    console.log('Starting audio generation...');
+    console.log('Parsing request body...');
     const { script, voiceId } = await req.json();
 
+    console.log('Request parameters:', { 
+      scriptLength: script?.length, 
+      voiceId 
+    });
+
     if (!script || !voiceId) {
-      console.error('Missing required parameters');
       throw new Error('Script and voiceId are required');
     }
 
-    console.log('Checking ElevenLabs API key...');
     const elevenLabsKey = Deno.env.get('ELEVEN_LABS_API_KEY');
     if (!elevenLabsKey) {
-      console.error('ElevenLabs API key not found in environment');
       throw new Error('ElevenLabs API key not configured');
     }
 
     console.log('Making request to ElevenLabs API...');
-    console.log('Voice ID:', voiceId);
-    console.log('Script length:', script.length);
-
-    const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
+    const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}/stream`, {
       method: 'POST',
       headers: {
         'Accept': 'audio/mpeg',
@@ -51,24 +53,28 @@ serve(async (req) => {
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('ElevenLabs API error:', errorText);
+      console.error('ElevenLabs API error response:', errorText);
       throw new Error(`ElevenLabs API error: ${errorText}`);
     }
 
-    console.log('Successfully received response from ElevenLabs');
-
     const arrayBuffer = await response.arrayBuffer();
     const base64Audio = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
-    console.log('Successfully processed audio data');
-    
+
     return new Response(
       JSON.stringify({ audioContent: base64Audio }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error) {
-    console.error('Audio generation error:', error.message);
+    console.error('Error details:', {
+      message: error.message,
+      stack: error.stack
+    });
+
     return new Response(
-      JSON.stringify({ error: error.message || 'Failed to generate audio' }),
+      JSON.stringify({ 
+        error: error.message || 'Failed to generate audio',
+        timestamp: new Date().toISOString()
+      }),
       { 
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
