@@ -8,33 +8,49 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
-  // This will help us track if the function is being called
-  console.log('Function called at:', new Date().toISOString());
+  console.log('Function started:', new Date().toISOString());
 
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
 
   try {
-    console.log('Parsing request body...');
     const { script, voiceId } = await req.json();
+    console.log('Received request with:', { scriptLength: script?.length, voiceId });
 
-    console.log('Request parameters:', { 
-      scriptLength: script?.length, 
-      voiceId 
-    });
-
-    if (!script || !voiceId) {
-      throw new Error('Script and voiceId are required');
+    // Validate inputs
+    if (!script) {
+      throw new Error('Script is required');
+    }
+    if (!voiceId) {
+      throw new Error('Voice ID is required');
     }
 
+    // Check for API key
     const elevenLabsKey = Deno.env.get('ELEVEN_LABS_API_KEY');
     if (!elevenLabsKey) {
+      console.error('ElevenLabs API key not found');
       throw new Error('ElevenLabs API key not configured');
     }
 
     console.log('Making request to ElevenLabs API...');
-    const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}/stream`, {
+    
+    // First verify the voice exists
+    const voiceCheckResponse = await fetch(`https://api.elevenlabs.io/v1/voices/${voiceId}`, {
+      headers: {
+        'xi-api-key': elevenLabsKey,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!voiceCheckResponse.ok) {
+      const errorText = await voiceCheckResponse.text();
+      console.error('Voice check failed:', errorText);
+      throw new Error(`Invalid voice ID: ${voiceId}`);
+    }
+
+    // Generate the audio
+    const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
       method: 'POST',
       headers: {
         'Accept': 'audio/mpeg',
@@ -53,10 +69,11 @@ serve(async (req) => {
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('ElevenLabs API error response:', errorText);
+      console.error('ElevenLabs text-to-speech error:', errorText);
       throw new Error(`ElevenLabs API error: ${errorText}`);
     }
 
+    console.log('Successfully generated audio');
     const arrayBuffer = await response.arrayBuffer();
     const base64Audio = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
 
@@ -64,10 +81,12 @@ serve(async (req) => {
       JSON.stringify({ audioContent: base64Audio }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
+
   } catch (error) {
-    console.error('Error details:', {
+    console.error('Detailed error:', {
       message: error.message,
-      stack: error.stack
+      stack: error.stack,
+      time: new Date().toISOString()
     });
 
     return new Response(
