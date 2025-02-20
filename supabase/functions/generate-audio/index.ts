@@ -8,24 +8,29 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
 
   try {
+    console.log('Starting audio generation...');
     const { script, voiceId } = await req.json();
 
     if (!script || !voiceId) {
+      console.error('Missing required parameters');
       throw new Error('Script and voiceId are required');
     }
 
+    console.log('Checking ElevenLabs API key...');
     const elevenLabsKey = Deno.env.get('ELEVEN_LABS_API_KEY');
     if (!elevenLabsKey) {
+      console.error('ElevenLabs API key not found in environment');
       throw new Error('ElevenLabs API key not configured');
     }
 
     console.log('Making request to ElevenLabs API...');
+    console.log('Voice ID:', voiceId);
+    console.log('Script length:', script.length);
 
     const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
       method: 'POST',
@@ -54,29 +59,19 @@ serve(async (req) => {
 
     const arrayBuffer = await response.arrayBuffer();
     const base64Audio = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+    console.log('Successfully processed audio data');
     
     return new Response(
       JSON.stringify({ audioContent: base64Audio }),
-      { 
-        headers: { 
-          ...corsHeaders, 
-          'Content-Type': 'application/json' 
-        } 
-      }
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
-
   } catch (error) {
     console.error('Audio generation error:', error.message);
     return new Response(
-      JSON.stringify({ 
-        error: error.message || 'Failed to generate audio'
-      }),
+      JSON.stringify({ error: error.message || 'Failed to generate audio' }),
       { 
         status: 500,
-        headers: { 
-          ...corsHeaders, 
-          'Content-Type': 'application/json' 
-        }
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       }
     );
   }

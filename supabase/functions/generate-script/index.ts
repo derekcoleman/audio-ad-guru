@@ -13,13 +13,17 @@ serve(async (req) => {
   }
 
   try {
+    console.log('Starting script generation...');
     const { brandName, description, duration } = await req.json();
     const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
 
+    console.log('Checking OpenAI API key...');
     if (!openAIApiKey) {
+      console.error('OpenAI API key not found in environment');
       throw new Error('OpenAI API key not configured');
     }
 
+    console.log('Making request to OpenAI API...');
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -40,20 +44,21 @@ serve(async (req) => {
     });
 
     if (!response.ok) {
-      const error = await response.text();
-      console.error('OpenAI API error:', error);
-      throw new Error('Failed to generate script');
+      const errorText = await response.text();
+      console.error('OpenAI API error:', errorText);
+      throw new Error(`OpenAI API error: ${errorText}`);
     }
 
     const data = await response.json();
+    console.log('Successfully generated script');
     
     return new Response(JSON.stringify(data), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (error) {
-    console.error('Script generation error:', error);
+    console.error('Script generation error:', error.message);
     return new Response(
-      JSON.stringify({ error: error.message }), 
+      JSON.stringify({ error: error.message || 'Failed to generate script' }), 
       { 
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
