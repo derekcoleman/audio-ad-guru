@@ -14,10 +14,8 @@ enabled = true
 port = 54323
 api_url = "http://localhost"
 
-[[functions]]
-name = "generate-script"
+[functions.generate-script]
 verify_jwt = false
 
-[[functions]]
-name = "generate-audio"
+[functions.generate-audio]
 verify_jwt = false
