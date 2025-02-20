@@ -10,6 +10,8 @@ export class OpenAIError extends Error {
 }
 
 export async function getOpenAIKey(): Promise<string> {
+  console.log('Attempting to fetch OpenAI API key from Supabase...');
+  
   const { data, error } = await supabase
     .from('secrets')
     .select('value')
@@ -21,7 +23,10 @@ export async function getOpenAIKey(): Promise<string> {
     throw new OpenAIError('Failed to retrieve OpenAI API key');
   }
 
+  console.log('Supabase response:', { data, error });
+
   if (!data?.value) {
+    console.error('No OpenAI API key found in secrets');
     throw new OpenAIError('OpenAI API key not found. Please make sure you have set it in your Supabase secrets.');
   }
 
