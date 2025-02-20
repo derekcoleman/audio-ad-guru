@@ -1,11 +1,17 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import AudioWaveform from "../AudioWaveform";
 import { supabase } from "@/integrations/supabase/client";
+
+interface Voice {
+  voice_id: string;
+  name: string;
+  category: string;
+}
 
 interface AudioGeneratorProps {
   script: string;
@@ -15,7 +21,34 @@ const AudioGenerator = ({ script }: AudioGeneratorProps) => {
   const [selectedVoice, setSelectedVoice] = useState("");
   const [isGeneratingAudio, setIsGeneratingAudio] = useState(false);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [voices, setVoices] = useState<Voice[]>([]);
+  const [isLoadingVoices, setIsLoadingVoices] = useState(true);
   const { toast } = useToast();
+
+  useEffect(() => {
+    const fetchVoices = async () => {
+      try {
+        const { data, error } = await supabase.functions.invoke('get-voices');
+        
+        if (error) throw error;
+        
+        if (data.voices) {
+          setVoices(data.voices);
+        }
+      } catch (error) {
+        console.error('Error fetching voices:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load available voices. Please try again later.",
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoadingVoices(false);
+      }
+    };
+
+    fetchVoices();
+  }, [toast]);
 
   const handleGenerateAudio = async () => {
     if (!script || !selectedVoice) {
@@ -61,13 +94,20 @@ const AudioGenerator = ({ script }: AudioGeneratorProps) => {
         <Label htmlFor="voice">Select Voice</Label>
         <Select value={selectedVoice} onValueChange={setSelectedVoice}>
           <SelectTrigger>
-            <SelectValue placeholder="Choose a voice" />
+            <SelectValue placeholder={isLoadingVoices ? "Loading voices..." : "Choose a voice"} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="21m00Tcm4TlvDq8ikWAM">Rachel (Female)</SelectItem>
-            <SelectItem value="AZnzlk1XvdvUeBnXmlld">Domi (Male)</SelectItem>
-            <SelectItem value="EXAVITQu4vr4xnSDxMaL">Bella (Female)</SelectItem>
-            <SelectItem value="ErXwobaYiN019PkySvjV">Antoni (Male)</SelectItem>
+            {isLoadingVoices ? (
+              <SelectItem value="loading" disabled>Loading available voices...</SelectItem>
+            ) : voices.length > 0 ? (
+              voices.map((voice) => (
+                <SelectItem key={voice.voice_id} value={voice.voice_id}>
+                  {voice.name} ({voice.category})
+                </SelectItem>
+              ))
+            ) : (
+              <SelectItem value="no-voices" disabled>No voices available</SelectItem>
+            )}
           </SelectContent>
         </Select>
       </div>
@@ -75,7 +115,7 @@ const AudioGenerator = ({ script }: AudioGeneratorProps) => {
       <Button
         onClick={handleGenerateAudio}
         className="w-full"
-        disabled={isGeneratingAudio}
+        disabled={isGeneratingAudio || !selectedVoice}
       >
         {isGeneratingAudio ? (
           <div className="flex items-center gap-2">
