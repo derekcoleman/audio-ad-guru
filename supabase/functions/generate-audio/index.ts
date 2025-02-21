@@ -1,45 +1,31 @@
 
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import "https://deno.land/x/xhr@0.1.0/mod.ts";
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import "https://deno.land/x/xhr@0.1.0/mod.ts"
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+}
 
 serve(async (req) => {
-  console.log('Starting audio generation request:', new Date().toISOString());
-
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+    return new Response('ok', { headers: corsHeaders })
   }
 
   try {
-    // Check for API key first
+    console.log('Starting audio generation:', new Date().toISOString());
+    const { script, voiceId } = await req.json();
+
+    if (!script?.trim() || !voiceId?.trim()) {
+      throw new Error('Script and voice ID are required');
+    }
+
     const elevenLabsKey = Deno.env.get('ELEVEN_LABS_API_KEY');
     if (!elevenLabsKey) {
-      console.error('ElevenLabs API key not found');
       throw new Error('ElevenLabs API key not configured');
     }
 
-    console.log('API key found, parsing request body...');
-
-    // Parse request body
-    const { script, voiceId } = await req.json();
-
-    // Validate inputs
-    if (!script?.trim()) {
-      throw new Error('Script cannot be empty');
-    }
-    if (!voiceId?.trim()) {
-      throw new Error('Voice ID cannot be empty');
-    }
-
-    console.log('Request validation passed. Voice ID:', voiceId);
-    console.log('Script length:', script.length, 'characters');
-
-    // Generate the audio
     console.log('Making request to ElevenLabs API...');
     const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
       method: 'POST',
@@ -64,6 +50,21 @@ serve(async (req) => {
         statusText: response.statusText,
         error: errorText
       });
+
+      // Check if the error is due to free user restrictions
+      if (errorText.includes('free_users_not_allowed')) {
+        return new Response(
+          JSON.stringify({ 
+            error: 'This voice is not available for free users. Please try a different voice or upgrade your ElevenLabs account.',
+            code: 'FREE_USER_RESTRICTED'
+          }),
+          { 
+            status: 403,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          }
+        );
+      }
+
       throw new Error(`Failed to generate audio: ${errorText}`);
     }
 
