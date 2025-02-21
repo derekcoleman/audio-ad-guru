@@ -16,8 +16,6 @@ const ScriptGenerator = () => {
   const [generatedScript, setGeneratedScript] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [selectedDuration, setSelectedDuration] = useState("30");
-  const [estimatedDuration, setEstimatedDuration] = useState<number | null>(null);
-  const [selectedVoice, setSelectedVoice] = useState("");
 
   return (
     <div className="space-y-8 max-w-2xl mx-auto">
@@ -37,9 +35,6 @@ const ScriptGenerator = () => {
           <AudioGenerator 
             script={generatedScript} 
             duration={selectedDuration}
-            onVoiceSelect={setSelectedVoice}
-            estimatedDuration={estimatedDuration}
-            setEstimatedDuration={setEstimatedDuration}
           />
         </div>
       )}

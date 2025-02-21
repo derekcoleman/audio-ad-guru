@@ -3,7 +3,6 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import AudioWaveform from "../AudioWaveform";
 import { supabase } from "@/integrations/supabase/client";
@@ -17,20 +16,11 @@ interface Voice {
 interface AudioGeneratorProps {
   script: string;
   duration: string;
-  onVoiceSelect: (voiceId: string) => void;
-  estimatedDuration: number | null;
-  setEstimatedDuration: (duration: number | null) => void;
 }
 
 const SAMPLE_TEXT = "Hello! This is a sample of my voice. How do I sound?";
 
-const AudioGenerator = ({ 
-  script, 
-  duration, 
-  onVoiceSelect,
-  estimatedDuration,
-  setEstimatedDuration
-}: AudioGeneratorProps) => {
+const AudioGenerator = ({ script, duration }: AudioGeneratorProps) => {
   const [selectedVoice, setSelectedVoice] = useState("");
   const [isGeneratingAudio, setIsGeneratingAudio] = useState(false);
   const [isPlayingSample, setIsPlayingSample] = useState(false);
@@ -38,7 +28,6 @@ const AudioGenerator = ({
   const [sampleAudioUrl, setSampleAudioUrl] = useState<string | null>(null);
   const [voices, setVoices] = useState<Voice[]>([]);
   const [isLoadingVoices, setIsLoadingVoices] = useState(true);
-  const [isCheckingDuration, setIsCheckingDuration] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -64,68 +53,29 @@ const AudioGenerator = ({
     fetchVoices();
   }, [toast]);
 
-  const checkScriptDuration = async (voiceId: string) => {
-    setIsCheckingDuration(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('check-script-duration', {
-        body: { 
-          script, 
-          voiceId 
-        }
-      });
-
-      if (error) throw error;
-      setEstimatedDuration(data.duration);
-    } catch (error) {
-      console.error('Duration check error:', error);
-      toast({
-        title: "Error",
-        description: "Failed to check script duration. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsCheckingDuration(false);
-    }
-  };
-
+  // Generate sample audio when a voice is selected
   const handleVoiceChange = async (voiceId: string) => {
     setSelectedVoice(voiceId);
-    onVoiceSelect(voiceId);
-    setSampleAudioUrl(null);
+    setSampleAudioUrl(null); // Clear previous sample
     setIsPlayingSample(true);
     
     try {
-      // Generate sample audio
       const { data, error } = await supabase.functions.invoke('generate-audio', {
         body: { script: SAMPLE_TEXT, voiceId }
       });
 
-      if (error) {
-        if (error.message.includes('free_users_not_allowed') || error.message.includes('FREE_USER_RESTRICTED')) {
-          toast({
-            title: "Voice Unavailable",
-            description: "This voice is not available for free users. Please try a different voice or upgrade your ElevenLabs account.",
-            variant: "destructive",
-          });
-          setSelectedVoice("");
-          onVoiceSelect("");
-          return;
-        }
-        throw error;
-      }
+      if (error) throw error;
 
+      // Create a new blob and URL for the audio
       const audioBlob = await fetch(`data:audio/mpeg;base64,${data.audioContent}`).then(res => res.blob());
       const url = URL.createObjectURL(audioBlob);
       
+      // Clean up previous URL if it exists
       if (sampleAudioUrl) {
         URL.revokeObjectURL(sampleAudioUrl);
       }
       
       setSampleAudioUrl(url);
-
-      // Check script duration with selected voice
-      await checkScriptDuration(voiceId);
-
     } catch (error) {
       console.error('Sample audio generation error:', error);
       toast({
@@ -133,13 +83,12 @@ const AudioGenerator = ({
         description: "Failed to generate voice sample. Please try again.",
         variant: "destructive",
       });
-      setSelectedVoice("");
-      onVoiceSelect("");
     } finally {
       setIsPlayingSample(false);
     }
   };
 
+  // Clean up audio URLs when component unmounts
   useEffect(() => {
     return () => {
       if (sampleAudioUrl) {
@@ -151,6 +100,12 @@ const AudioGenerator = ({
     };
   }, []);
 
+  const estimateScriptDuration = (text: string) => {
+    const wordsPerMinute = 140;
+    const words = text.trim().split(/\s+/).length;
+    return (words / wordsPerMinute) * 60;
+  };
+
   const handleGenerateAudio = async () => {
     if (!script || !selectedVoice) {
       toast({
@@ -161,9 +116,10 @@ const AudioGenerator = ({
       return;
     }
 
+    const estimatedDuration = estimateScriptDuration(script);
     const selectedDurationSeconds = parseInt(duration);
     
-    if (estimatedDuration && estimatedDuration > selectedDurationSeconds) {
+    if (estimatedDuration > selectedDurationSeconds) {
       toast({
         title: "Script Too Long",
         description: `The script is estimated to take ${Math.round(estimatedDuration)} seconds, but the selected duration is ${selectedDurationSeconds} seconds. Please shorten the script or choose a longer duration.`,
@@ -178,19 +134,7 @@ const AudioGenerator = ({
         body: { script, voiceId: selectedVoice }
       });
 
-      if (error) {
-        if (error.message.includes('free_users_not_allowed') || error.message.includes('FREE_USER_RESTRICTED')) {
-          toast({
-            title: "Voice Unavailable",
-            description: "This voice is not available for free users. Please try a different voice or upgrade your ElevenLabs account.",
-            variant: "destructive",
-          });
-          setSelectedVoice("");
-          onVoiceSelect("");
-          return;
-        }
-        throw error;
-      }
+      if (error) throw error;
 
       if (audioUrl) {
         URL.revokeObjectURL(audioUrl);
@@ -239,22 +183,6 @@ const AudioGenerator = ({
           </SelectContent>
         </Select>
 
-        {estimatedDuration !== null && (
-          <Alert className="mt-2">
-            <AlertDescription>
-              {estimatedDuration > parseInt(duration) ? (
-                <span className="text-destructive">
-                  ⚠️ Script is too long! Estimated duration: {Math.round(estimatedDuration)} seconds. Please shorten the script or increase the ad duration.
-                </span>
-              ) : (
-                <span className="text-green-600">
-                  ✓ Script duration: {Math.round(estimatedDuration)} seconds (fits within {duration} second limit)
-                </span>
-              )}
-            </AlertDescription>
-          </Alert>
-        )}
-
         {/* Voice Sample Player */}
         {sampleAudioUrl && (
           <div className="mt-2">
@@ -270,7 +198,7 @@ const AudioGenerator = ({
       <Button
         onClick={handleGenerateAudio}
         className="w-full"
-        disabled={isGeneratingAudio || !selectedVoice || (estimatedDuration !== null && estimatedDuration > parseInt(duration))}
+        disabled={isGeneratingAudio || !selectedVoice}
       >
         {isGeneratingAudio ? (
           <div className="flex items-center gap-2">
