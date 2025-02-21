@@ -1,6 +1,5 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import "https://deno.land/x/xhr@0.1.0/mod.ts"
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -15,6 +14,7 @@ serve(async (req) => {
 
   try {
     const { script } = await req.json();
+    console.log('Received script:', script); // Debug log
     
     if (!script) {
       throw new Error('Script is required');
@@ -22,8 +22,11 @@ serve(async (req) => {
 
     const elevenLabsKey = Deno.env.get('ELEVEN_LABS_API_KEY');
     if (!elevenLabsKey) {
+      console.error('ElevenLabs API key missing'); // Debug log
       throw new Error('ElevenLabs API key not configured');
     }
+
+    console.log('Making request to ElevenLabs...'); // Debug log
 
     const response = await fetch('https://api.elevenlabs.io/v1/text-to-speech/text-analysis', {
       method: 'POST',
@@ -36,6 +39,8 @@ serve(async (req) => {
       }),
     });
 
+    console.log('ElevenLabs response status:', response.status); // Debug log
+
     if (!response.ok) {
       const errorText = await response.text();
       console.error('ElevenLabs API error:', errorText);
@@ -43,10 +48,7 @@ serve(async (req) => {
     }
 
     const data = await response.json();
-    
-    if (!data.duration) {
-      throw new Error('Invalid response from ElevenLabs API');
-    }
+    console.log('ElevenLabs response data:', data); // Debug log
 
     return new Response(
       JSON.stringify({ duration: data.duration }),
