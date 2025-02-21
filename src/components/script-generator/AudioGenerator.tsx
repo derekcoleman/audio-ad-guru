@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -16,11 +15,12 @@ interface Voice {
 interface AudioGeneratorProps {
   script: string;
   duration: string;
+  onScriptChange: (newScript: string) => void;
 }
 
 const SAMPLE_TEXT = "Hello! This is a sample of my voice. How do I sound?";
 
-const AudioGenerator = ({ script, duration }: AudioGeneratorProps) => {
+const AudioGenerator = ({ script, duration, onScriptChange }: AudioGeneratorProps) => {
   const [selectedVoice, setSelectedVoice] = useState("");
   const [isGeneratingAudio, setIsGeneratingAudio] = useState(false);
   const [isPlayingSample, setIsPlayingSample] = useState(false);
@@ -53,10 +53,9 @@ const AudioGenerator = ({ script, duration }: AudioGeneratorProps) => {
     fetchVoices();
   }, [toast]);
 
-  // Generate sample audio when a voice is selected
   const handleVoiceChange = async (voiceId: string) => {
     setSelectedVoice(voiceId);
-    setSampleAudioUrl(null); // Clear previous sample
+    setSampleAudioUrl(null);
     setIsPlayingSample(true);
     
     try {
@@ -66,11 +65,9 @@ const AudioGenerator = ({ script, duration }: AudioGeneratorProps) => {
 
       if (error) throw error;
 
-      // Create a new blob and URL for the audio
       const audioBlob = await fetch(`data:audio/mpeg;base64,${data.audioContent}`).then(res => res.blob());
       const url = URL.createObjectURL(audioBlob);
       
-      // Clean up previous URL if it exists
       if (sampleAudioUrl) {
         URL.revokeObjectURL(sampleAudioUrl);
       }
@@ -88,7 +85,6 @@ const AudioGenerator = ({ script, duration }: AudioGeneratorProps) => {
     }
   };
 
-  // Clean up audio URLs when component unmounts
   useEffect(() => {
     return () => {
       if (sampleAudioUrl) {
@@ -104,6 +100,33 @@ const AudioGenerator = ({ script, duration }: AudioGeneratorProps) => {
     const wordsPerMinute = 140;
     const words = text.trim().split(/\s+/).length;
     return (words / wordsPerMinute) * 60;
+  };
+
+  const handleAdjustScript = async () => {
+    try {
+      const { data, error } = await supabase.functions.invoke('adjust-script-length', {
+        body: { 
+          script,
+          targetDuration: parseInt(duration)
+        }
+      });
+
+      if (error) throw error;
+
+      onScriptChange(data.adjustedScript);
+      
+      toast({
+        title: "Script Adjusted",
+        description: "The script has been adjusted to fit the selected duration.",
+      });
+    } catch (error) {
+      console.error('Script adjustment error:', error);
+      toast({
+        title: "Error",
+        description: "Failed to adjust script length. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleGenerateAudio = async () => {
@@ -122,7 +145,21 @@ const AudioGenerator = ({ script, duration }: AudioGeneratorProps) => {
     if (estimatedDuration > selectedDurationSeconds) {
       toast({
         title: "Script Too Long",
-        description: `The script is estimated to take ${Math.round(estimatedDuration)} seconds, but the selected duration is ${selectedDurationSeconds} seconds. Please shorten the script or choose a longer duration.`,
+        description: (
+          <div className="space-y-2">
+            <p>The script is estimated to take {Math.round(estimatedDuration)} seconds, but the selected duration is {selectedDurationSeconds} seconds.</p>
+            <Button 
+              variant="outline" 
+              onClick={(e) => {
+                e.preventDefault();
+                handleAdjustScript();
+              }}
+              className="w-full mt-2"
+            >
+              Adjust Script Length Automatically
+            </Button>
+          </div>
+        ),
         variant: "destructive",
       });
       return;
@@ -183,7 +220,6 @@ const AudioGenerator = ({ script, duration }: AudioGeneratorProps) => {
           </SelectContent>
         </Select>
 
-        {/* Voice Sample Player */}
         {sampleAudioUrl && (
           <div className="mt-2">
             <Label>Voice Sample</Label>

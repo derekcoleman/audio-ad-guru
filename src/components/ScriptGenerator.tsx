@@ -35,6 +35,7 @@ const ScriptGenerator = () => {
           <AudioGenerator 
             script={generatedScript} 
             duration={selectedDuration}
+            onScriptChange={setGeneratedScript}
           />
         </div>
       )}
