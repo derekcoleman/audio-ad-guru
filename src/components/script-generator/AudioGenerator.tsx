@@ -53,9 +53,10 @@ const AudioGenerator = ({ script, duration }: AudioGeneratorProps) => {
     fetchVoices();
   }, [toast]);
 
+  // Generate sample audio when a voice is selected
   const handleVoiceChange = async (voiceId: string) => {
     setSelectedVoice(voiceId);
-    setSampleAudioUrl(null);
+    setSampleAudioUrl(null); // Clear previous sample
     setIsPlayingSample(true);
     
     try {
@@ -63,22 +64,13 @@ const AudioGenerator = ({ script, duration }: AudioGeneratorProps) => {
         body: { script: SAMPLE_TEXT, voiceId }
       });
 
-      if (error) {
-        if (error.message.includes('free_users_not_allowed') || error.message.includes('FREE_USER_RESTRICTED')) {
-          toast({
-            title: "Voice Unavailable",
-            description: "This voice is not available for free users. Please try a different voice or upgrade your ElevenLabs account.",
-            variant: "destructive",
-          });
-          setSelectedVoice("");
-          return;
-        }
-        throw error;
-      }
+      if (error) throw error;
 
+      // Create a new blob and URL for the audio
       const audioBlob = await fetch(`data:audio/mpeg;base64,${data.audioContent}`).then(res => res.blob());
       const url = URL.createObjectURL(audioBlob);
       
+      // Clean up previous URL if it exists
       if (sampleAudioUrl) {
         URL.revokeObjectURL(sampleAudioUrl);
       }
@@ -91,12 +83,12 @@ const AudioGenerator = ({ script, duration }: AudioGeneratorProps) => {
         description: "Failed to generate voice sample. Please try again.",
         variant: "destructive",
       });
-      setSelectedVoice("");
     } finally {
       setIsPlayingSample(false);
     }
   };
 
+  // Clean up audio URLs when component unmounts
   useEffect(() => {
     return () => {
       if (sampleAudioUrl) {
@@ -108,11 +100,29 @@ const AudioGenerator = ({ script, duration }: AudioGeneratorProps) => {
     };
   }, []);
 
+  const estimateScriptDuration = (text: string) => {
+    const wordsPerMinute = 140;
+    const words = text.trim().split(/\s+/).length;
+    return (words / wordsPerMinute) * 60;
+  };
+
   const handleGenerateAudio = async () => {
     if (!script || !selectedVoice) {
       toast({
         title: "Missing Information",
         description: "Please generate a script and select a voice first",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const estimatedDuration = estimateScriptDuration(script);
+    const selectedDurationSeconds = parseInt(duration);
+    
+    if (estimatedDuration > selectedDurationSeconds) {
+      toast({
+        title: "Script Too Long",
+        description: `The script is estimated to take ${Math.round(estimatedDuration)} seconds, but the selected duration is ${selectedDurationSeconds} seconds. Please shorten the script or choose a longer duration.`,
         variant: "destructive",
       });
       return;
@@ -124,18 +134,7 @@ const AudioGenerator = ({ script, duration }: AudioGeneratorProps) => {
         body: { script, voiceId: selectedVoice }
       });
 
-      if (error) {
-        if (error.message.includes('free_users_not_allowed') || error.message.includes('FREE_USER_RESTRICTED')) {
-          toast({
-            title: "Voice Unavailable",
-            description: "This voice is not available for free users. Please try a different voice or upgrade your ElevenLabs account.",
-            variant: "destructive",
-          });
-          setSelectedVoice("");
-          return;
-        }
-        throw error;
-      }
+      if (error) throw error;
 
       if (audioUrl) {
         URL.revokeObjectURL(audioUrl);
