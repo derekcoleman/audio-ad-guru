@@ -23,7 +23,3 @@ verify_jwt = false
 
 [functions.get-voices]
 verify_jwt = false
-
-[functions.check-script-duration]
-verify_jwt = false
-

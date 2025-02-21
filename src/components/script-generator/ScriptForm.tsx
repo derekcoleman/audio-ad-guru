@@ -33,15 +33,6 @@ const ScriptForm = ({
   const [duration, setDuration] = useState("30");
   const { toast } = useToast();
 
-  const checkScriptDuration = async (script: string): Promise<number> => {
-    const { data, error } = await supabase.functions.invoke('check-script-duration', {
-      body: { script }
-    });
-
-    if (error) throw error;
-    return data.duration;
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!brandName || !description) {
@@ -56,47 +47,15 @@ const ScriptForm = ({
     setIsGenerating(true);
 
     try {
-      let finalScript = "";
-      let isScriptValid = false;
-      let attempts = 0;
-      const maxAttempts = 3;
+      const { data, error } = await supabase.functions.invoke('generate-script', {
+        body: { brandName, description, duration }
+      });
 
-      while (!isScriptValid && attempts < maxAttempts) {
-        const { data, error } = await supabase.functions.invoke('generate-script', {
-          body: { 
-            brandName, 
-            description, 
-            duration,
-            attempt: attempts + 1,
-            previousScript: attempts > 0 ? finalScript : null
-          }
-        });
+      if (error) throw error;
 
-        if (error) throw error;
-
-        finalScript = data.choices[0].message.content;
-        
-        // Check duration with ElevenLabs API
-        const scriptDuration = await checkScriptDuration(finalScript);
-        const selectedDurationSeconds = parseInt(duration);
-
-        if (scriptDuration <= selectedDurationSeconds) {
-          isScriptValid = true;
-        } else {
-          attempts++;
-          console.log(`Script too long (${scriptDuration}s), attempting adjustment... Attempt ${attempts}`);
-        }
-      }
-
-      if (!isScriptValid) {
-        toast({
-          title: "Warning",
-          description: "The generated script might be slightly longer than the target duration. Please review and edit if needed.",
-          variant: "destructive",
-        });
-      }
-
-      onScriptGenerated(finalScript);
+      const script = data.choices[0].message.content;
+      onScriptGenerated(script);
+      
       toast({
         title: "Success",
         description: "Your script has been generated!",
