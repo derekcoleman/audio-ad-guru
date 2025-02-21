@@ -53,10 +53,9 @@ const AudioGenerator = ({ script, duration }: AudioGeneratorProps) => {
     fetchVoices();
   }, [toast]);
 
-  // Generate sample audio when a voice is selected
   const handleVoiceChange = async (voiceId: string) => {
     setSelectedVoice(voiceId);
-    setSampleAudioUrl(null); // Clear previous sample
+    setSampleAudioUrl(null);
     setIsPlayingSample(true);
     
     try {
@@ -66,11 +65,9 @@ const AudioGenerator = ({ script, duration }: AudioGeneratorProps) => {
 
       if (error) throw error;
 
-      // Create a new blob and URL for the audio
       const audioBlob = await fetch(`data:audio/mpeg;base64,${data.audioContent}`).then(res => res.blob());
       const url = URL.createObjectURL(audioBlob);
       
-      // Clean up previous URL if it exists
       if (sampleAudioUrl) {
         URL.revokeObjectURL(sampleAudioUrl);
       }
@@ -88,7 +85,6 @@ const AudioGenerator = ({ script, duration }: AudioGeneratorProps) => {
     }
   };
 
-  // Clean up audio URLs when component unmounts
   useEffect(() => {
     return () => {
       if (sampleAudioUrl) {
@@ -100,29 +96,11 @@ const AudioGenerator = ({ script, duration }: AudioGeneratorProps) => {
     };
   }, []);
 
-  const estimateScriptDuration = (text: string) => {
-    const wordsPerMinute = 140;
-    const words = text.trim().split(/\s+/).length;
-    return (words / wordsPerMinute) * 60;
-  };
-
   const handleGenerateAudio = async () => {
     if (!script || !selectedVoice) {
       toast({
         title: "Missing Information",
         description: "Please generate a script and select a voice first",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    const estimatedDuration = estimateScriptDuration(script);
-    const selectedDurationSeconds = parseInt(duration);
-    
-    if (estimatedDuration > selectedDurationSeconds) {
-      toast({
-        title: "Script Too Long",
-        description: `The script is estimated to take ${Math.round(estimatedDuration)} seconds, but the selected duration is ${selectedDurationSeconds} seconds. Please shorten the script or choose a longer duration.`,
         variant: "destructive",
       });
       return;
