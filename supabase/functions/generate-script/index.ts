@@ -34,10 +34,10 @@ serve(async (req) => {
         model: "gpt-4o-mini",
         messages: [{
           role: "system",
-          content: `You are a professional voice-over script writer specializing in ${duration}-second radio advertisements. Create clear, natural-sounding scripts that a voice actor can read smoothly. Write only the actual spoken words - no audio directions, sound effects, music cues, or formatting. The script will be used directly for text-to-speech conversion, so only include words that should be spoken out loud.`
+          content: `You are an expert copywriter specializing in ${duration}-second radio advertisements. Create compelling, concise scripts that fit within the time limit.`
         }, {
           role: "user",
-          content: `Write a ${duration}-second radio ad script for ${brandName}. Description: ${description}. Provide only the actual spoken words that will be converted to audio. Do not include any formatting, brackets, sound effects, or music directions.`
+          content: `Create a ${duration}-second radio ad script for ${brandName}. Here's the description: ${description}`
         }],
         temperature: 0.7,
       }),

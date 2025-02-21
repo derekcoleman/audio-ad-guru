@@ -8,29 +8,42 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
+  console.log('Starting audio generation request:', new Date().toISOString());
+
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
 
   try {
+    // Check for API key first
     const elevenLabsKey = Deno.env.get('ELEVEN_LABS_API_KEY');
     if (!elevenLabsKey) {
+      console.error('ElevenLabs API key not found');
       throw new Error('ElevenLabs API key not configured');
     }
 
+    console.log('API key found, parsing request body...');
+
     // Parse request body
     const { script, voiceId } = await req.json();
-    
-    if (!script?.trim() || !voiceId?.trim()) {
-      throw new Error('Script and voice ID are required');
+
+    // Validate inputs
+    if (!script?.trim()) {
+      throw new Error('Script cannot be empty');
+    }
+    if (!voiceId?.trim()) {
+      throw new Error('Voice ID cannot be empty');
     }
 
-    // Make request to ElevenLabs API
+    console.log('Request validation passed. Voice ID:', voiceId);
+    console.log('Script length:', script.length, 'characters');
+
+    // Generate the audio
+    console.log('Making request to ElevenLabs API...');
     const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
       method: 'POST',
       headers: {
-        'Accept': 'audio/mpeg',
         'xi-api-key': elevenLabsKey,
         'Content-Type': 'application/json',
       },
@@ -45,15 +58,27 @@ serve(async (req) => {
     });
 
     if (!response.ok) {
-      const errorData = await response.text();
-      throw new Error(`ElevenLabs API error: ${errorData}`);
+      const errorText = await response.text();
+      console.error('ElevenLabs API error:', {
+        status: response.status,
+        statusText: response.statusText,
+        error: errorText
+      });
+      throw new Error(`Failed to generate audio: ${errorText}`);
     }
 
-    // Convert audio response to base64
+    console.log('Audio generated successfully, processing response...');
+
+    // Convert audio to base64
     const arrayBuffer = await response.arrayBuffer();
     const uint8Array = new Uint8Array(arrayBuffer);
-    const binary = String.fromCharCode.apply(null, uint8Array);
+    let binary = '';
+    for (let i = 0; i < uint8Array.length; i++) {
+      binary += String.fromCharCode(uint8Array[i]);
+    }
     const base64Audio = btoa(binary);
+
+    console.log('Audio processing complete, sending response...');
 
     return new Response(
       JSON.stringify({ audioContent: base64Audio }),
@@ -66,11 +91,16 @@ serve(async (req) => {
     );
 
   } catch (error) {
-    console.error('Error in generate-audio function:', error);
-    
+    console.error('Error in generate-audio function:', {
+      message: error.message,
+      stack: error.stack,
+      time: new Date().toISOString()
+    });
+
     return new Response(
       JSON.stringify({ 
-        error: error.message || 'An unexpected error occurred'
+        error: error.message || 'An unexpected error occurred',
+        timestamp: new Date().toISOString()
       }),
       { 
         status: 500,
