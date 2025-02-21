@@ -6,6 +6,21 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+// Average speaking rate is about 150 words per minute
+const WORDS_PER_MINUTE = 150;
+const SECONDS_PER_MINUTE = 60;
+
+function estimateScriptDuration(script: string): number {
+  // Count words (split by spaces and filter out empty strings)
+  const wordCount = script.trim().split(/\s+/).filter(word => word.length > 0).length;
+  
+  // Add 15% buffer for pauses and natural speech variations
+  const durationInMinutes = (wordCount / WORDS_PER_MINUTE) * 1.15;
+  
+  // Convert to seconds and round to 1 decimal place
+  return Math.round(durationInMinutes * SECONDS_PER_MINUTE * 10) / 10;
+}
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -13,49 +28,18 @@ serve(async (req) => {
   }
 
   try {
-    const { script, voiceId } = await req.json();
-    console.log('Received script:', script, 'voiceId:', voiceId);
+    const { script } = await req.json();
+    console.log('Received script:', script);
     
-    if (!script || !voiceId) {
-      throw new Error('Script and voiceId are required');
+    if (!script) {
+      throw new Error('Script is required');
     }
 
-    const elevenLabsKey = Deno.env.get('ELEVEN_LABS_API_KEY');
-    if (!elevenLabsKey) {
-      console.error('ElevenLabs API key missing');
-      throw new Error('ElevenLabs API key not configured');
-    }
-
-    console.log('Making request to ElevenLabs...');
-
-    const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}/stream-input-length`, {
-      method: 'POST',
-      headers: {
-        'xi-api-key': elevenLabsKey,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        text: script,
-        voice_settings: {
-          stability: 0.5,
-          similarity_boost: 0.75
-        }
-      }),
-    });
-
-    console.log('ElevenLabs response status:', response.status);
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('ElevenLabs API error:', errorText);
-      throw new Error(`ElevenLabs API error: ${errorText}`);
-    }
-
-    const data = await response.json();
-    console.log('ElevenLabs response data:', data);
+    const estimatedDuration = estimateScriptDuration(script);
+    console.log('Estimated duration:', estimatedDuration, 'seconds');
 
     return new Response(
-      JSON.stringify({ duration: data.expected_duration }),
+      JSON.stringify({ duration: estimatedDuration }),
       { 
         headers: { 
           ...corsHeaders, 
