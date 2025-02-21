@@ -15,10 +15,9 @@ interface Voice {
 
 interface AudioGeneratorProps {
   script: string;
-  duration: string; // Add duration prop
+  duration: string;
 }
 
-// Sample text for voice preview
 const SAMPLE_TEXT = "Hello! This is a sample of my voice. How do I sound?";
 
 const AudioGenerator = ({ script, duration }: AudioGeneratorProps) => {
@@ -35,9 +34,7 @@ const AudioGenerator = ({ script, duration }: AudioGeneratorProps) => {
     const fetchVoices = async () => {
       try {
         const { data, error } = await supabase.functions.invoke('get-voices');
-        
         if (error) throw error;
-        
         if (data.voices) {
           setVoices(data.voices);
         }
@@ -59,6 +56,7 @@ const AudioGenerator = ({ script, duration }: AudioGeneratorProps) => {
   // Generate sample audio when a voice is selected
   const handleVoiceChange = async (voiceId: string) => {
     setSelectedVoice(voiceId);
+    setSampleAudioUrl(null); // Clear previous sample
     setIsPlayingSample(true);
     
     try {
@@ -68,8 +66,15 @@ const AudioGenerator = ({ script, duration }: AudioGeneratorProps) => {
 
       if (error) throw error;
 
+      // Create a new blob and URL for the audio
       const audioBlob = await fetch(`data:audio/mpeg;base64,${data.audioContent}`).then(res => res.blob());
       const url = URL.createObjectURL(audioBlob);
+      
+      // Clean up previous URL if it exists
+      if (sampleAudioUrl) {
+        URL.revokeObjectURL(sampleAudioUrl);
+      }
+      
       setSampleAudioUrl(url);
     } catch (error) {
       console.error('Sample audio generation error:', error);
@@ -83,11 +88,22 @@ const AudioGenerator = ({ script, duration }: AudioGeneratorProps) => {
     }
   };
 
+  // Clean up audio URLs when component unmounts
+  useEffect(() => {
+    return () => {
+      if (sampleAudioUrl) {
+        URL.revokeObjectURL(sampleAudioUrl);
+      }
+      if (audioUrl) {
+        URL.revokeObjectURL(audioUrl);
+      }
+    };
+  }, []);
+
   const estimateScriptDuration = (text: string) => {
-    // Average speaking rate is about 130-150 words per minute
     const wordsPerMinute = 140;
     const words = text.trim().split(/\s+/).length;
-    return (words / wordsPerMinute) * 60; // Duration in seconds
+    return (words / wordsPerMinute) * 60;
   };
 
   const handleGenerateAudio = async () => {
@@ -100,7 +116,6 @@ const AudioGenerator = ({ script, duration }: AudioGeneratorProps) => {
       return;
     }
 
-    // Check if the script duration exceeds the selected duration
     const estimatedDuration = estimateScriptDuration(script);
     const selectedDurationSeconds = parseInt(duration);
     
@@ -120,6 +135,10 @@ const AudioGenerator = ({ script, duration }: AudioGeneratorProps) => {
       });
 
       if (error) throw error;
+
+      if (audioUrl) {
+        URL.revokeObjectURL(audioUrl);
+      }
 
       const audioBlob = await fetch(`data:audio/mpeg;base64,${data.audioContent}`).then(res => res.blob());
       const url = URL.createObjectURL(audioBlob);
@@ -168,7 +187,7 @@ const AudioGenerator = ({ script, duration }: AudioGeneratorProps) => {
         {sampleAudioUrl && (
           <div className="mt-2">
             <Label>Voice Sample</Label>
-            <audio controls className="w-full mt-1">
+            <audio controls className="w-full mt-1" key={sampleAudioUrl}>
               <source src={sampleAudioUrl} type="audio/mpeg" />
               Your browser does not support the audio element.
             </audio>
@@ -193,7 +212,7 @@ const AudioGenerator = ({ script, duration }: AudioGeneratorProps) => {
       {audioUrl && (
         <div className="mt-4">
           <Label>Generated Audio Ad</Label>
-          <audio controls className="w-full">
+          <audio controls className="w-full" key={audioUrl}>
             <source src={audioUrl} type="audio/mpeg" />
             Your browser does not support the audio element.
           </audio>
