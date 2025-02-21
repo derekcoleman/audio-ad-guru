@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -52,6 +53,7 @@ const AudioGenerator = ({ script, duration }: AudioGeneratorProps) => {
     fetchVoices();
   }, [toast]);
 
+  // Generate sample audio when a voice is selected
   const handleVoiceChange = async (voiceId: string) => {
     setSelectedVoice(voiceId);
     setSampleAudioUrl(null); // Clear previous sample
@@ -62,19 +64,7 @@ const AudioGenerator = ({ script, duration }: AudioGeneratorProps) => {
         body: { script: SAMPLE_TEXT, voiceId }
       });
 
-      if (error) {
-        // Check if this is a free user restriction error
-        if (error.message.includes('free_users_not_allowed') || error.message.includes('FREE_USER_RESTRICTED')) {
-          toast({
-            title: "Voice Unavailable",
-            description: "This voice is not available for free users. Please try a different voice or upgrade your ElevenLabs account.",
-            variant: "destructive",
-          });
-          setSelectedVoice(""); // Reset voice selection
-          return;
-        }
-        throw error;
-      }
+      if (error) throw error;
 
       // Create a new blob and URL for the audio
       const audioBlob = await fetch(`data:audio/mpeg;base64,${data.audioContent}`).then(res => res.blob());
@@ -93,12 +83,12 @@ const AudioGenerator = ({ script, duration }: AudioGeneratorProps) => {
         description: "Failed to generate voice sample. Please try again.",
         variant: "destructive",
       });
-      setSelectedVoice(""); // Reset voice selection
     } finally {
       setIsPlayingSample(false);
     }
   };
 
+  // Clean up audio URLs when component unmounts
   useEffect(() => {
     return () => {
       if (sampleAudioUrl) {
@@ -144,19 +134,7 @@ const AudioGenerator = ({ script, duration }: AudioGeneratorProps) => {
         body: { script, voiceId: selectedVoice }
       });
 
-      if (error) {
-        // Check if this is a free user restriction error
-        if (error.message.includes('free_users_not_allowed') || error.message.includes('FREE_USER_RESTRICTED')) {
-          toast({
-            title: "Voice Unavailable",
-            description: "This voice is not available for free users. Please try a different voice or upgrade your ElevenLabs account.",
-            variant: "destructive",
-          });
-          setSelectedVoice(""); // Reset voice selection
-          return;
-        }
-        throw error;
-      }
+      if (error) throw error;
 
       if (audioUrl) {
         URL.revokeObjectURL(audioUrl);
