@@ -14,7 +14,7 @@ serve(async (req) => {
 
   try {
     const { script } = await req.json();
-    console.log('Received script:', script); // Debug log
+    console.log('Received script:', script);
     
     if (!script) {
       throw new Error('Script is required');
@@ -22,13 +22,32 @@ serve(async (req) => {
 
     const elevenLabsKey = Deno.env.get('ELEVEN_LABS_API_KEY');
     if (!elevenLabsKey) {
-      console.error('ElevenLabs API key missing'); // Debug log
+      console.error('ElevenLabs API key missing');
       throw new Error('ElevenLabs API key not configured');
     }
 
-    console.log('Making request to ElevenLabs...'); // Debug log
+    // First, get an available voice ID
+    const voicesResponse = await fetch('https://api.elevenlabs.io/v1/voices', {
+      headers: {
+        'xi-api-key': elevenLabsKey,
+      },
+    });
 
-    const response = await fetch('https://api.elevenlabs.io/v1/text-to-speech/text-analysis', {
+    if (!voicesResponse.ok) {
+      throw new Error('Failed to fetch voices');
+    }
+
+    const voicesData = await voicesResponse.json();
+    const voiceId = voicesData.voices[0]?.voice_id;
+    
+    if (!voiceId) {
+      throw new Error('No voices available');
+    }
+
+    console.log('Making request to ElevenLabs speech generation...');
+
+    // Use the text-to-speech endpoint with the voice ID
+    const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}/stream-input-length`, {
       method: 'POST',
       headers: {
         'xi-api-key': elevenLabsKey,
@@ -39,7 +58,7 @@ serve(async (req) => {
       }),
     });
 
-    console.log('ElevenLabs response status:', response.status); // Debug log
+    console.log('ElevenLabs response status:', response.status);
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -48,10 +67,11 @@ serve(async (req) => {
     }
 
     const data = await response.json();
-    console.log('ElevenLabs response data:', data); // Debug log
+    console.log('ElevenLabs response data:', data);
 
+    // The response includes expected_duration in seconds
     return new Response(
-      JSON.stringify({ duration: data.duration }),
+      JSON.stringify({ duration: data.expected_duration }),
       { 
         headers: { 
           ...corsHeaders, 
