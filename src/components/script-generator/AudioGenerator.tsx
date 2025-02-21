@@ -15,17 +15,12 @@ interface Voice {
 
 interface AudioGeneratorProps {
   script: string;
-  duration: string;
 }
 
-const SAMPLE_TEXT = "Hello! This is a sample of my voice. How do I sound?";
-
-const AudioGenerator = ({ script, duration }: AudioGeneratorProps) => {
+const AudioGenerator = ({ script }: AudioGeneratorProps) => {
   const [selectedVoice, setSelectedVoice] = useState("");
   const [isGeneratingAudio, setIsGeneratingAudio] = useState(false);
-  const [isPlayingSample, setIsPlayingSample] = useState(false);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
-  const [sampleAudioUrl, setSampleAudioUrl] = useState<string | null>(null);
   const [voices, setVoices] = useState<Voice[]>([]);
   const [isLoadingVoices, setIsLoadingVoices] = useState(true);
   const { toast } = useToast();
@@ -34,7 +29,9 @@ const AudioGenerator = ({ script, duration }: AudioGeneratorProps) => {
     const fetchVoices = async () => {
       try {
         const { data, error } = await supabase.functions.invoke('get-voices');
+        
         if (error) throw error;
+        
         if (data.voices) {
           setVoices(data.voices);
         }
@@ -53,76 +50,11 @@ const AudioGenerator = ({ script, duration }: AudioGeneratorProps) => {
     fetchVoices();
   }, [toast]);
 
-  // Generate sample audio when a voice is selected
-  const handleVoiceChange = async (voiceId: string) => {
-    setSelectedVoice(voiceId);
-    setSampleAudioUrl(null); // Clear previous sample
-    setIsPlayingSample(true);
-    
-    try {
-      const { data, error } = await supabase.functions.invoke('generate-audio', {
-        body: { script: SAMPLE_TEXT, voiceId }
-      });
-
-      if (error) throw error;
-
-      // Create a new blob and URL for the audio
-      const audioBlob = await fetch(`data:audio/mpeg;base64,${data.audioContent}`).then(res => res.blob());
-      const url = URL.createObjectURL(audioBlob);
-      
-      // Clean up previous URL if it exists
-      if (sampleAudioUrl) {
-        URL.revokeObjectURL(sampleAudioUrl);
-      }
-      
-      setSampleAudioUrl(url);
-    } catch (error) {
-      console.error('Sample audio generation error:', error);
-      toast({
-        title: "Error",
-        description: "Failed to generate voice sample. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsPlayingSample(false);
-    }
-  };
-
-  // Clean up audio URLs when component unmounts
-  useEffect(() => {
-    return () => {
-      if (sampleAudioUrl) {
-        URL.revokeObjectURL(sampleAudioUrl);
-      }
-      if (audioUrl) {
-        URL.revokeObjectURL(audioUrl);
-      }
-    };
-  }, []);
-
-  const estimateScriptDuration = (text: string) => {
-    const wordsPerMinute = 140;
-    const words = text.trim().split(/\s+/).length;
-    return (words / wordsPerMinute) * 60;
-  };
-
   const handleGenerateAudio = async () => {
     if (!script || !selectedVoice) {
       toast({
         title: "Missing Information",
         description: "Please generate a script and select a voice first",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    const estimatedDuration = estimateScriptDuration(script);
-    const selectedDurationSeconds = parseInt(duration);
-    
-    if (estimatedDuration > selectedDurationSeconds) {
-      toast({
-        title: "Script Too Long",
-        description: `The script is estimated to take ${Math.round(estimatedDuration)} seconds, but the selected duration is ${selectedDurationSeconds} seconds. Please shorten the script or choose a longer duration.`,
         variant: "destructive",
       });
       return;
@@ -135,10 +67,6 @@ const AudioGenerator = ({ script, duration }: AudioGeneratorProps) => {
       });
 
       if (error) throw error;
-
-      if (audioUrl) {
-        URL.revokeObjectURL(audioUrl);
-      }
 
       const audioBlob = await fetch(`data:audio/mpeg;base64,${data.audioContent}`).then(res => res.blob());
       const url = URL.createObjectURL(audioBlob);
@@ -164,7 +92,7 @@ const AudioGenerator = ({ script, duration }: AudioGeneratorProps) => {
     <div className="space-y-4">
       <div className="space-y-2">
         <Label htmlFor="voice">Select Voice</Label>
-        <Select value={selectedVoice} onValueChange={handleVoiceChange}>
+        <Select value={selectedVoice} onValueChange={setSelectedVoice}>
           <SelectTrigger>
             <SelectValue placeholder={isLoadingVoices ? "Loading voices..." : "Choose a voice"} />
           </SelectTrigger>
@@ -182,17 +110,6 @@ const AudioGenerator = ({ script, duration }: AudioGeneratorProps) => {
             )}
           </SelectContent>
         </Select>
-
-        {/* Voice Sample Player */}
-        {sampleAudioUrl && (
-          <div className="mt-2">
-            <Label>Voice Sample</Label>
-            <audio controls className="w-full mt-1" key={sampleAudioUrl}>
-              <source src={sampleAudioUrl} type="audio/mpeg" />
-              Your browser does not support the audio element.
-            </audio>
-          </div>
-        )}
       </div>
 
       <Button
@@ -211,8 +128,7 @@ const AudioGenerator = ({ script, duration }: AudioGeneratorProps) => {
 
       {audioUrl && (
         <div className="mt-4">
-          <Label>Generated Audio Ad</Label>
-          <audio controls className="w-full" key={audioUrl}>
+          <audio controls className="w-full">
             <source src={audioUrl} type="audio/mpeg" />
             Your browser does not support the audio element.
           </audio>

@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import ScriptForm from "./script-generator/ScriptForm";
 import ScriptDisplay from "./script-generator/ScriptDisplay";
@@ -15,7 +14,6 @@ interface OpenAIResponse {
 const ScriptGenerator = () => {
   const [generatedScript, setGeneratedScript] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
-  const [selectedDuration, setSelectedDuration] = useState("30");
 
   return (
     <div className="space-y-8 max-w-2xl mx-auto">
@@ -23,7 +21,6 @@ const ScriptGenerator = () => {
         onScriptGenerated={setGeneratedScript}
         isGenerating={isGenerating}
         setIsGenerating={setIsGenerating}
-        onDurationChange={setSelectedDuration}
       />
 
       {generatedScript && (
@@ -32,10 +29,7 @@ const ScriptGenerator = () => {
             script={generatedScript}
             onScriptChange={setGeneratedScript}
           />
-          <AudioGenerator 
-            script={generatedScript} 
-            duration={selectedDuration}
-          />
+          <AudioGenerator script={generatedScript} />
         </div>
       )}
     </div>
